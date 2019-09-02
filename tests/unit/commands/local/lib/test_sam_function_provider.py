@@ -1,5 +1,6 @@
 from unittest import TestCase
 from mock import patch
+from collections import OrderedDict
 from parameterized import parameterized
 
 from samcli.commands.local.cli_common.user_exceptions import InvalidLayerVersionArn
@@ -76,9 +77,21 @@ class TestSamFunctionProviderEndToEnd(TestCase):
 
     EXPECTED_FUNCTIONS = ["SamFunc1", "SamFunc2", "SamFunc3", "LambdaFunc1"]
 
-    def setUp(self):
+    @patch.object(SamFunctionProvider, '_parse_function_code')
+    def setUp(self, mocked_code):
+        def sortOD(od):
+            res = OrderedDict()
+            for k, v in sorted(od.items()):
+                if isinstance(v, dict):
+                    res[k] = sortOD(v)
+                else:
+                    res[k] = v
+            return res
+        # Need to sort the dictionary for python2 compatibility
+        template = sortOD(self.TEMPLATE)
+        mocked_code.side_effect = [".", "./some/path/to/code", "/usr/foo/bar", ".", "."]
         self.parameter_overrides = {}
-        self.provider = SamFunctionProvider(self.TEMPLATE, parameter_overrides=self.parameter_overrides)
+        self.provider = SamFunctionProvider(template, parameter_overrides=self.parameter_overrides)
 
     @parameterized.expand([
         ("SamFunc1", Function(
@@ -187,9 +200,11 @@ class TestSamFunctionProvider_init(TestCase):
 class TestSamFunctionProvider_extract_functions(TestCase):
 
     @patch.object(SamFunctionProvider, "_convert_sam_function_resource")
-    def test_must_work_for_sam_function(self, convert_mock):
+    @patch.object(SamFunctionProvider, "_parse_function_code")
+    def test_must_work_for_sam_function(self, parse_mock, convert_mock):
         convertion_result = "some result"
         convert_mock.return_value = convertion_result
+        parse_mock.return_value = '.'
 
         resources = {
             "Func1": {
@@ -204,12 +219,14 @@ class TestSamFunctionProvider_extract_functions(TestCase):
 
         result = SamFunctionProvider._extract_functions(resources)
         self.assertEquals(expected, result)
-        convert_mock.assert_called_with('Func1', {"a": "b"}, [])
+        convert_mock.assert_called_with('Func1', {"a": "b"}, [], '.')
 
     @patch.object(SamFunctionProvider, "_convert_sam_function_resource")
-    def test_must_work_with_no_properties(self, convert_mock):
+    @patch.object(SamFunctionProvider, "_parse_function_code")
+    def test_must_work_with_no_properties(self, parse_mock, convert_mock):
         convertion_result = "some result"
         convert_mock.return_value = convertion_result
+        parse_mock.return_value = None
 
         resources = {
             "Func1": {
@@ -224,12 +241,14 @@ class TestSamFunctionProvider_extract_functions(TestCase):
 
         result = SamFunctionProvider._extract_functions(resources)
         self.assertEquals(expected, result)
-        convert_mock.assert_called_with('Func1', {}, [])
+        convert_mock.assert_called_with('Func1', {}, [], None)
 
     @patch.object(SamFunctionProvider, "_convert_lambda_function_resource")
-    def test_must_work_for_lambda_function(self, convert_mock):
+    @patch.object(SamFunctionProvider, "_parse_function_code")
+    def test_must_work_for_lambda_function(self, parse_mock, convert_mock):
         convertion_result = "some result"
         convert_mock.return_value = convertion_result
+        parse_mock.return_value = '.'
 
         resources = {
             "Func1": {
@@ -244,7 +263,7 @@ class TestSamFunctionProvider_extract_functions(TestCase):
 
         result = SamFunctionProvider._extract_functions(resources)
         self.assertEquals(expected, result)
-        convert_mock.assert_called_with('Func1', {"a": "b"}, [])
+        convert_mock.assert_called_with('Func1', {"a": "b"}, [], '.')
 
     def test_must_skip_unknown_resource(self):
         resources = {
@@ -288,7 +307,10 @@ class TestSamFunctionProvider_convert_sam_function_resource(TestCase):
             layers=["Layer1", "Layer2"]
         )
 
-        result = SamFunctionProvider._convert_sam_function_resource(name, properties, ["Layer1", "Layer2"])
+        result = SamFunctionProvider._convert_sam_function_resource(name,
+                                                                    properties,
+                                                                    ["Layer1", "Layer2"],
+                                                                    "/usr/local")
 
         self.assertEquals(expected, result)
 
@@ -311,7 +333,7 @@ class TestSamFunctionProvider_convert_sam_function_resource(TestCase):
             layers=[]
         )
 
-        result = SamFunctionProvider._convert_sam_function_resource(name, properties, [])
+        result = SamFunctionProvider._convert_sam_function_resource(name, properties, [], "/usr/local")
 
         self.assertEquals(expected, result)
 
@@ -322,7 +344,7 @@ class TestSamFunctionProvider_convert_sam_function_resource(TestCase):
             "Runtime": "myruntime"
         }
 
-        result = SamFunctionProvider._convert_sam_function_resource(name, properties, [])
+        result = SamFunctionProvider._convert_sam_function_resource(name, properties, [], '.')
         self.assertEquals(result.codeuri, ".")  # Default value
 
     def test_must_handle_code_dict(self):
@@ -335,7 +357,7 @@ class TestSamFunctionProvider_convert_sam_function_resource(TestCase):
             }
         }
 
-        result = SamFunctionProvider._convert_sam_function_resource(name, properties, [])
+        result = SamFunctionProvider._convert_sam_function_resource(name, properties, [], '.')
         self.assertEquals(result.codeuri, ".")  # Default value
 
     def test_must_handle_code_s3_uri(self):
@@ -345,7 +367,7 @@ class TestSamFunctionProvider_convert_sam_function_resource(TestCase):
             "CodeUri": "s3://bucket/key"
         }
 
-        result = SamFunctionProvider._convert_sam_function_resource(name, properties, [])
+        result = SamFunctionProvider._convert_sam_function_resource(name, properties, [], '.')
         self.assertEquals(result.codeuri, ".")  # Default value
 
 
@@ -379,7 +401,7 @@ class TestSamFunctionProvider_convert_lambda_function_resource(TestCase):
             layers=["Layer1", "Layer2"]
         )
 
-        result = SamFunctionProvider._convert_lambda_function_resource(name, properties, ["Layer1", "Layer2"])
+        result = SamFunctionProvider._convert_lambda_function_resource(name, properties, ["Layer1", "Layer2"], ".")
 
         self.assertEquals(expected, result)
 
@@ -404,7 +426,7 @@ class TestSamFunctionProvider_convert_lambda_function_resource(TestCase):
             layers=[]
         )
 
-        result = SamFunctionProvider._convert_lambda_function_resource(name, properties, [])
+        result = SamFunctionProvider._convert_lambda_function_resource(name, properties, [], ".")
 
         self.assertEquals(expected, result)
 
