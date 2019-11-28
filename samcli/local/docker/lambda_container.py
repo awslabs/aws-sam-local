@@ -2,7 +2,10 @@
 Represents Lambda runtime containers.
 """
 import logging
+import os
+import posixpath
 
+from samcli.commands.exceptions import UserException
 from samcli.local.docker.lambda_debug_entrypoint import LambdaDebugEntryPoint
 from .container import Container
 from .lambda_image import Runtime
@@ -31,7 +34,10 @@ class LambdaContainer(Container):
     # This is the dictionary that represents where the debugger_path arg is mounted in docker to as readonly.
     _DEBUGGER_VOLUME_MOUNT = {"bind": _DEBUGGER_VOLUME_MOUNT_PATH, "mode": "ro"}
 
-    def __init__(
+    # Additional volumes Mount path defined by user
+    _VOLUME_MOUNT_PATH = "/tmp/user_added_volumes"
+
+    def __init__(  # pylint: disable-msg=too-many-locals
         self,  # pylint: disable=R0914
         runtime,
         handler,
@@ -41,6 +47,7 @@ class LambdaContainer(Container):
         memory_mb=128,
         env_vars=None,
         debug_options=None,
+        additional_volumes=None,
     ):
         """
         Initializes the class
@@ -64,6 +71,8 @@ class LambdaContainer(Container):
             Optional. Dictionary containing environment variables passed to container
         debug_options DebugContext
             Optional. Contains container debugging info (port, debugger path)
+        additional_volumes tuple(Path)
+            Optional. Contains collection of host volumes to be mounted in container.
         """
 
         if not Runtime.has_value(runtime):
@@ -73,7 +82,16 @@ class LambdaContainer(Container):
         ports = LambdaContainer._get_exposed_ports(debug_options)
         entry = LambdaContainer._get_entry_point(runtime, debug_options)
         additional_options = LambdaContainer._get_additional_options(runtime, debug_options)
-        additional_volumes = LambdaContainer._get_additional_volumes(debug_options)
+        debugger_volume_map = LambdaContainer._get_debugger_volume(debug_options)
+        additional_volumes_map = LambdaContainer._get_additional_volumes(additional_volumes)
+
+        volumes = {}
+        if debugger_volume_map:
+            volumes.update(debugger_volume_map)
+
+        if additional_volumes_map:
+            volumes.update(additional_volumes_map)
+
         cmd = [handler]
 
         super(LambdaContainer, self).__init__(
@@ -86,7 +104,7 @@ class LambdaContainer(Container):
             entrypoint=entry,
             env_vars=env_vars,
             container_opts=additional_options,
-            additional_volumes=additional_volumes,
+            additional_volumes=volumes,
         )
 
     @staticmethod
@@ -134,7 +152,7 @@ class LambdaContainer(Container):
         return opts
 
     @staticmethod
-    def _get_additional_volumes(debug_options):
+    def _get_debugger_volume(debug_options):
         """
         Return additional volumes to be mounted in the Docker container. Used by container debug for mapping
         debugger executable into the container.
@@ -201,3 +219,39 @@ class LambdaContainer(Container):
             runtime=runtime,
             options=LambdaContainer._DEBUG_ENTRYPOINT_OPTIONS,
         )
+
+    @staticmethod
+    def _get_additional_volumes(host_volumes):
+        """
+        Generate a dictionary for mounting additional volumes in container.
+        A remote directory is generated based on remote base path + host node folder name
+
+        :param Tuple(Path) host_volumes: Volumes to be mounted in a container.
+        :return dict: A dictionary containing volumes mapping between host and remote container
+        """
+
+        if not host_volumes:
+            return None
+
+        volume_map = {}
+        existing_base_names = {}
+        for host_volume in host_volumes:
+            host_base_name = os.path.basename(host_volume)
+
+            if host_base_name in existing_base_names:
+                raise UserException(
+                    "Basename '{}' already exists in volumes map: {}".format(
+                        host_base_name, str(list(volume_map.keys()))
+                    )
+                )
+
+            existing_base_names[host_base_name] = True
+
+            if not host_base_name:
+                continue
+
+            remote_volume_path = posixpath.join(LambdaContainer._VOLUME_MOUNT_PATH, host_base_name)
+
+            volume_map[host_volume] = {"bind": remote_volume_path, "mode": ""}
+
+        return volume_map
