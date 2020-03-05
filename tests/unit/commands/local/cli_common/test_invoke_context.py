@@ -36,6 +36,7 @@ class TestInvokeContext__enter__(TestCase):
             parameter_overrides={},
             aws_region="region",
             aws_profile="profile",
+            base_dir=None,  # No base dir is provided
         )
 
         template_dict = "template_dict"
@@ -225,6 +226,7 @@ class TestInvokeContext_local_lambda_runner(TestCase):
             debug_args="args",
             aws_profile="profile",
             aws_region="region",
+            base_dir="basedir",
         )
 
     @patch("samcli.commands.local.cli_common.invoke_context.LambdaImage")
@@ -249,6 +251,7 @@ class TestInvokeContext_local_lambda_runner(TestCase):
         lambda_image_patch.return_value = image_mock
 
         cwd = "cwd"
+        base_dir = "basedir"
         self.context.get_cwd = Mock()
         self.context.get_cwd.return_value = cwd
 
@@ -270,7 +273,7 @@ class TestInvokeContext_local_lambda_runner(TestCase):
             LocalLambdaMock.assert_called_with(
                 local_runtime=runtime_mock,
                 function_provider=ANY,
-                cwd=cwd,
+                cwd=base_dir or cwd,
                 debug_context=None,
                 env_vars_values=ANY,
                 aws_profile="profile",
