@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Dict
 
 import click
+import requests
 
 from samcli.cli.main import global_cfg
 from samcli.commands.exceptions import UserException, AppTemplateUpdateException
@@ -31,45 +32,14 @@ class InvalidInitTemplateError(UserException):
 
 class InitTemplates:
     def __init__(self, no_interactive=False, auto_clone=True):
-        self._repo_url = "https://github.com/aws/aws-sam-cli-app-templates"
+        self._repo_url = "https://github.com/sapessi/aws-sam-cli-app-templates"
+        self._manifest_url = "https://raw.githubusercontent.com/sapessi/aws-sam-cli-app-templates/master/manifest.json"
         self._repo_name = "aws-sam-cli-app-templates"
         self._temp_repo_name = "TEMP-aws-sam-cli-app-templates"
         self.repo_path = None
         self.clone_attempted = False
         self._no_interactive = no_interactive
         self._auto_clone = auto_clone
-
-    def prompt_for_location(self, package_type, runtime, base_image, dependency_manager):
-        options = self.init_options(package_type, runtime, base_image, dependency_manager)
-
-        if len(options) == 1:
-            template_md = options[0]
-        else:
-            choices = list(map(str, range(1, len(options) + 1)))
-            choice_num = 1
-            click.echo("\nAWS quick start application templates:")
-            for o in options:
-                if o.get("displayName") is not None:
-                    msg = "\t" + str(choice_num) + " - " + o.get("displayName")
-                    click.echo(msg)
-                else:
-                    msg = (
-                        "\t"
-                        + str(choice_num)
-                        + " - Default Template for runtime "
-                        + runtime
-                        + " with dependency manager "
-                        + dependency_manager
-                    )
-                    click.echo(msg)
-                choice_num = choice_num + 1
-            choice = click.prompt("Template selection", type=click.Choice(choices), show_choices=False)
-            template_md = options[int(choice) - 1]  # zero index
-        if template_md.get("init_location") is not None:
-            return (template_md["init_location"], template_md["appTemplate"])
-        if template_md.get("directory") is not None:
-            return (os.path.join(self.repo_path, template_md["directory"]), template_md["appTemplate"])
-        raise InvalidInitTemplateError("Invalid template. This should not be possible, please raise an issue.")
 
     def location_from_app_template(self, package_type, runtime, base_image, dependency_manager, app_template):
         options = self.init_options(package_type, runtime, base_image, dependency_manager)
@@ -89,6 +59,43 @@ class InitTemplates:
         # we need to cast it to bool because entry["appTemplate"] can be Any, and Any's __eq__ can return Any
         # detail: https://github.com/python/mypy/issues/5697
         return bool(entry["appTemplate"] == app_template)
+
+    def use_case_init_options(self, package_type, runtime, base_image, dependency_manager):
+        manifest_resp = requests.get(self._manifest_url)
+
+        if not manifest_resp:
+            raise InvalidInitTemplateError("Can't retrieve templates manifest from {url}".
+                                           format(url=self._manifest_url))
+
+        use_case_options = {}
+        manifest_body = manifest_resp.json()
+
+        for template_runtime in manifest_body:
+            # filter by runtime and base image if they are specified
+            if runtime and runtime != template_runtime:
+                continue
+            if base_image and base_image != template_runtime:
+                continue
+
+            for template in manifest_body[template_runtime]:
+                # abort, we are using an older version of the manifest
+                if "useCaseName" not in template:
+                    raise InvalidInitTemplateError(
+                        "Template {name} missing use case descriptor".format(name=template["displayName"]))
+
+                use_case_name = template["useCaseName"]
+                if use_case_name not in use_case_options:
+                    use_case_options[use_case_name] = {}
+                if template_runtime not in use_case_options[use_case_name]:
+                    use_case_options[use_case_name][template_runtime] = []
+
+                use_case_options[use_case_name][template_runtime].append(template)
+
+        return use_case_options
+
+    def clone_templates_repo(self):
+        if not self.clone_attempted:
+            self._clone_repo()
 
     def init_options(self, package_type, runtime, base_image, dependency_manager):
         if not self.clone_attempted:
