@@ -7,7 +7,7 @@ from unittest.mock import patch, Mock
 
 from parameterized import parameterized
 
-from samcli.commands.local.start_api.cli import do_cli as start_api_cli
+from samcli.commands.local.start_graphql_api.cli import do_cli as start_graphql_api_cli
 from samcli.commands.local.lib.exceptions import NoApisDefined, InvalidIntermediateImageError
 from samcli.lib.providers.exceptions import InvalidLayerReference
 from samcli.commands.exceptions import UserException
@@ -48,14 +48,14 @@ class TestCli(TestCase):
         self.static_dir = "staticdir"
 
     @patch("samcli.commands.local.cli_common.invoke_context.InvokeContext")
-    @patch("samcli.commands.local.lib.local_api_service.LocalApiService")
-    def test_cli_must_setup_context_and_start_service(self, local_api_service_mock, invoke_context_mock):
+    @patch("samcli.commands.local.lib.local_graphql_api_service.LocalGraphQLApiService")
+    def test_cli_must_setup_context_and_start_service(self, local_graphql_api_service_mock, invoke_context_mock):
         # Mock the __enter__ method to return a object inside a context manager
         context_mock = Mock()
         invoke_context_mock.return_value.__enter__.return_value = context_mock
 
         service_mock = Mock()
-        local_api_service_mock.return_value = service_mock
+        local_graphql_api_service_mock.return_value = service_mock
 
         self.warm_containers = None
         self.debug_function = None
@@ -79,27 +79,24 @@ class TestCli(TestCase):
             force_image_build=self.force_image_build,
             aws_region=self.region_name,
             aws_profile=self.profile,
-            warm_container_initialization_mode=self.warm_containers,
-            debug_function=self.debug_function,
-            shutdown=self.shutdown,
         )
 
-        local_api_service_mock.assert_called_with(
+        local_graphql_api_service_mock.assert_called_with(
             lambda_invoke_context=context_mock, port=self.port, host=self.host, static_dir=self.static_dir
         )
 
         service_mock.start.assert_called_with()
 
     @patch("samcli.commands.local.cli_common.invoke_context.InvokeContext")
-    @patch("samcli.commands.local.lib.local_api_service.LocalApiService")
-    def test_must_raise_if_no_api_defined(self, local_api_service_mock, invoke_context_mock):
+    @patch("samcli.commands.local.lib.local_graphql_api_service.LocalGraphQLApiService")
+    def test_must_raise_if_no_api_defined(self, local_graphql_api_service_mock, invoke_context_mock):
 
         # Mock the __enter__ method to return a object inside a context manager
         context_mock = Mock()
         invoke_context_mock.return_value.__enter__.return_value = context_mock
 
         service_mock = Mock()
-        local_api_service_mock.return_value = service_mock
+        local_graphql_api_service_mock.return_value = service_mock
         service_mock.start.side_effect = NoApisDefined("no apis")
 
         with self.assertRaises(UserException) as context:
@@ -167,7 +164,7 @@ class TestCli(TestCase):
         self.assertEqual(msg, expected)
 
     def call_cli(self):
-        start_api_cli(
+        start_graphql_api_cli(
             ctx=self.ctx_mock,
             host=self.host,
             port=self.port,
@@ -185,7 +182,4 @@ class TestCli(TestCase):
             parameter_overrides=self.parameter_overrides,
             layer_cache_basedir=self.layer_cache_basedir,
             force_image_build=self.force_image_build,
-            warm_containers=self.warm_containers,
-            debug_function=self.debug_function,
-            shutdown=self.shutdown,
         )

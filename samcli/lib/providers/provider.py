@@ -316,6 +316,14 @@ class Api:
         return list(self.binary_media_types_set)
 
 
+class GraphQLApi:
+    def __init__(self, resolvers=None):
+        if resolvers is None:
+            resolvers = []
+        self.resolvers = resolvers
+        self.schema_path = None
+
+
 _CorsTuple = namedtuple("Cors", ["allow_origin", "allow_methods", "allow_headers", "allow_credentials", "max_age"])
 
 _CorsTuple.__new__.__defaults__ = (  # type: ignore
