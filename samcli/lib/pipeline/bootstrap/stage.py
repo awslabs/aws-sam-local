@@ -148,8 +148,7 @@ class Stage:
             if not confirmed:
                 return False
 
-        sanitized_stage_name: str = re.sub("[^0-9a-zA-Z]+", "-", self.name)
-        stack_name: str = f"{STACK_NAME_PREFIX}-{sanitized_stage_name}-{STAGE_RESOURCES_STACK_NAME_SUFFIX}"
+        stack_name = Stage._get_stack_name(self.name)
         stage_resources_template_body = Stage._read_template(STAGE_RESOURCES_CFN_TEMPLATE)
         output: StackOutput = manage_stack(
             stack_name=stack_name,
@@ -290,3 +289,8 @@ class Stage:
             )
             click.secho(f"\tACCESS_KEY_ID: {self.pipeline_user.access_key_id}", fg="green")
             click.secho(f"\tSECRET_ACCESS_KEY: {self.pipeline_user.secret_access_key}", fg="green")
+
+    @staticmethod
+    def _get_stack_name(stage_name: str) -> str:
+        sanitized_stage_name: str = re.sub("[^0-9a-zA-Z]+", "-", stage_name)
+        return f"{STACK_NAME_PREFIX}-{sanitized_stage_name}-{STAGE_RESOURCES_STACK_NAME_SUFFIX}"
