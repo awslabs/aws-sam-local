@@ -163,6 +163,7 @@ class ApiCollector:
                 methods=sorted_methods,
                 event_type=route.event_type,
                 payload_format_version=route.payload_format_version,
+                operation_name=route.operation_name,
                 stack_path=route.stack_path,
             )
         return list(grouped_routes.values())
