@@ -179,6 +179,7 @@ class ApplicationBuilder:
         build_graph = BuildGraph(self._build_dir)
         functions = self._resources_to_build.functions
         layers = self._resources_to_build.layers
+        
         file_env_vars = {}
         if env_vars_file:
             try:
@@ -202,6 +203,12 @@ class ApplicationBuilder:
                 layer.name, layer.codeuri, layer.build_method, layer.compatible_runtimes, env_vars=container_env_vars
             )
             build_graph.put_layer_build_definition(layer_build_details, layer)
+
+        for function in functions:
+            function_build_details = FunctionBuildDefinition(
+                function.runtime, function.codeuri, function.packagetype, function.metadata
+            )
+            build_graph.put_function_build_definition(function_build_details, function)
 
         build_graph.clean_redundant_definitions_and_update(not self._is_building_specific_resource)
         return build_graph

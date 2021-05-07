@@ -97,6 +97,11 @@ class TestApplicationBuilder_build(TestCase):
         self.assertEqual(
             result,
             {
+                self.layer1.name: f"{self.layer1.name}_location",
+                self.layer2.name: f"{self.layer2.name}_location",
+                self.func1.name: os.path.join("builddir", self.func1.name),
+                self.func2.name: os.path.join("builddir", self.func2.name),
+                self.imageFunc1.name: build_image_function_mock_return,
                 self.func1.full_path: os.path.join("builddir", "StackJ", "function_name1"),
                 self.func2.full_path: os.path.join("builddir", "StackJ", "function_name2"),
                 self.imageFunc1.full_path: build_image_function_mock_return,
@@ -159,7 +164,8 @@ class TestApplicationBuilder_build(TestCase):
                     ANY,
                     ANY,
                 ),
-            ]
+            ],
+            any_order=False,
         )
 
     @patch("samcli.lib.build.build_graph.BuildGraph._write")
@@ -199,6 +205,25 @@ class TestApplicationBuilder_build(TestCase):
                 get_layer_call_with_artifact_dir(self.layer2.get_build_dir()),
             ]
         )
+
+    def test_must_build_layers_before_functions(self):
+        build_function_mock = Mock()
+        build_layer_mock = Mock()
+
+        expected_order = {
+            self.layer1.name: build_layer_mock.return_value,
+            self.layer2.name: build_layer_mock.return_value,
+            self.func1.name: build_function_mock.return_value,
+            self.func2.name: build_function_mock.return_value,
+        }
+
+        self.builder._build_function = build_function_mock
+        self.builder._build_layer = build_layer_mock
+
+        result = self.builder.build()
+
+        for i, j in zip(result.items(), expected_order.items()):
+            self.assertEqual(i, j)
 
     @patch("samcli.lib.build.build_graph.BuildGraph._write")
     def test_should_generate_build_graph(self, persist_mock):
