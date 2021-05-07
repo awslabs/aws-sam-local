@@ -99,7 +99,7 @@ for:
 
       # Run tests with dev env
       - "venv\\Scripts\\activate"
-      - "pytest --cov samcli --cov-report term-missing --cov-fail-under 94 tests/unit"
+      - "pytest --cov samcli --cov-report term-missing --cov-fail-under 94 -n 4 --dist loadfile tests/unit"
       - "pylint --rcfile .pylintrc samcli"
       - "mypy setup.py samcli tests"
       - "pytest -n 4 tests/functional"
@@ -162,7 +162,7 @@ for:
       
       # Dev Tests
       - "pip install -e \".[dev]\""
-      - "pytest --cov samcli --cov-report term-missing --cov-fail-under 94 tests/unit"
+      - "pytest --cov samcli --cov-report term-missing --cov-fail-under 94 -n 4 --dist loadfile tests/unit"
       - "pylint --rcfile .pylintrc samcli"
       - "mypy setup.py samcli tests"
       - "pytest -n 4 tests/functional"
@@ -172,8 +172,12 @@ for:
         if [[ -n $BY_CANARY ]] && [[ -n $DOCKER_USER ]] && [[ -n $DOCKER_PASS ]];
           then echo Logging in Docker Hub; echo $DOCKER_PASS | docker login --username $DOCKER_USER --password-stdin;
         fi"
-      - sh: "pytest -vv tests/integration"
-      - sh: "pytest -vv tests/regression"
+      # warm container integration tests might be interfered by other tests using docker.
+      # To grant exclusive access to docker, here we run warm container integration tests in sequential,
+      # then run everything else in parallel.
+      - sh: "pytest -vv -k 'TestWarmContainers' tests/integration"
+      - sh: "pytest -vv -n 2 --dist loadfile -k 'not TestWarmContainers' tests/integration"
+      - sh: "pytest -vv -n 4 --dist loadfile tests/regression"
       - sh: "black --check setup.py tests samcli"
 
       # Set JAVA_HOME to java11
