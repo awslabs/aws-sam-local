@@ -37,6 +37,7 @@ class TestDeployCliCommand(TestCase):
         self.force_upload = False
         self.no_progressbar = False
         self.metadata = {"abc": "def"}
+        self.acl = "private"
         self.region = None
         self.profile = None
         self.use_json = True
@@ -79,6 +80,7 @@ class TestDeployCliCommand(TestCase):
             profile=self.profile,
             use_json=self.use_json,
             metadata=self.metadata,
+            acl=self.acl,
             guided=self.guided,
             confirm_changeset=self.confirm_changeset,
             signing_profiles=self.signing_profiles,
@@ -191,6 +193,7 @@ class TestDeployCliCommand(TestCase):
                     profile=self.profile,
                     use_json=self.use_json,
                     metadata=self.metadata,
+                    acl=self.acl,
                     guided=True,
                     confirm_changeset=True,
                     signing_profiles=self.signing_profiles,
@@ -287,6 +290,7 @@ class TestDeployCliCommand(TestCase):
                 profile=self.profile,
                 use_json=self.use_json,
                 metadata=self.metadata,
+                acl=self.acl,
                 guided=True,
                 confirm_changeset=True,
                 signing_profiles=self.signing_profiles,
@@ -430,6 +434,7 @@ class TestDeployCliCommand(TestCase):
             profile=self.profile,
             use_json=self.use_json,
             metadata=self.metadata,
+            acl=self.acl,
             guided=True,
             confirm_changeset=True,
             signing_profiles=self.signing_profiles,
@@ -585,6 +590,7 @@ class TestDeployCliCommand(TestCase):
             profile=self.profile,
             use_json=self.use_json,
             metadata=self.metadata,
+            acl=self.acl,
             guided=True,
             confirm_changeset=True,
             resolve_s3=self.resolve_s3,
@@ -721,6 +727,7 @@ class TestDeployCliCommand(TestCase):
                 profile=self.profile,
                 use_json=self.use_json,
                 metadata=self.metadata,
+                acl=self.acl,
                 guided=True,
                 confirm_changeset=True,
                 resolve_s3=self.resolve_s3,
@@ -790,6 +797,7 @@ class TestDeployCliCommand(TestCase):
             profile=self.profile,
             use_json=self.use_json,
             metadata=self.metadata,
+            acl=self.acl,
             guided=self.guided,
             confirm_changeset=self.confirm_changeset,
             resolve_s3=True,
@@ -847,6 +855,7 @@ class TestDeployCliCommand(TestCase):
                 profile=self.profile,
                 use_json=self.use_json,
                 metadata=self.metadata,
+                acl=self.acl,
                 guided=False,
                 confirm_changeset=True,
                 resolve_s3=True,
